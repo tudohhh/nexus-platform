@@ -7,6 +7,12 @@ from api.auth import (create_token, get_current_tenant, require_domain,
                       require_admin, hash_password, verify_password)
 from api.tracing import trace_request, trace_error, trace_auth, flush
 
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
+
+limiter = Limiter(key_func=get_remote_address)
+
 def utcnow():
     return datetime.now(timezone.utc).isoformat()
 
@@ -128,6 +134,8 @@ def verifica_integritate(domain_id, row):
     except: return False
 
 app = FastAPI(title="Nexus Platform API", version="1.2.0")
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 app.add_middleware(CORSMiddleware,
     allow_origins=os.environ.get("ALLOWED_ORIGINS", "*").split(","),
     allow_methods=["GET", "POST"],
@@ -144,7 +152,8 @@ def shutdown():
 # ── AUTH ─────────────────────────────────────────────────
 
 @app.post("/auth/login")
-def login(body: dict):
+@limiter.limit("5/minute")
+def login(request: Request, body: dict):
     t0 = time.time()
     tenant_id = body.get("tenant_id", "")
     domain_id = body.get("domain_id", "")
@@ -303,6 +312,110 @@ def get_entity(domain_id: str, entity_id: str, current: dict = Depends(get_curre
     except: row["linii"] = []
     trace_request("/entities/" + entity_id, domain_id, current["tenant_id"], {}, {"id": entity_id}, (time.time()-t0)*1000)
     return row
+
+
+@app.post("/api/domains/{domain_id}/entities")
+def create_entity(domain_id: str, body: dict, current: dict = Depends(get_current_tenant)):
+    t0 = time.time()
+    require_domain(domain_id, current)
+
+    tenant_id = body.get("tenant_id", current["tenant_id"])
+    data      = body.get("data", {})
+
+    if not data:
+        raise HTTPException(400, "Campul data este obligatoriu")
+
+    valoare = data.get("valoare", 0)
+    if isinstance(valoare, (int, float)) and valoare < 0:
+        raise HTTPException(400, "Valoarea nu poate fi negativa")
+
+    data_str = json.dumps(data, ensure_ascii=False)
+    if len(data_str) > 50000:
+        raise HTTPException(413, "Payload prea mare — maxim 50KB")
+
+    entity_id  = uuid.uuid4().hex
+    cfg        = registry.get(domain_id)
+    fsm_states = cfg.get("fsm", {}).get("states", ["DRAFT"])
+    status_init = fsm_states[0] if fsm_states else "DRAFT"
+    owner_key  = registry.owner_key(domain_id)
+    tabel      = detecteaza_tabel(domain_id)
+    now        = utcnow()
+
+    hash_val = hmac.new(SECRET.encode(), (entity_id + data_str).encode(), hashlib.sha256).hexdigest()
+
+    if USE_PG:
+        _, conn = registry.get_db(domain_id)
+        cur = conn.cursor()
+        cur.execute(
+            f"INSERT INTO {tabel} (id, domain_id, {owner_key}, data, hash, status, valoare, urgent, created_at, updated_at) "
+            f"VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
+            (entity_id, domain_id, tenant_id, data_str, hash_val, status_init,
+             float(valoare), int(data.get("urgent", 0)), now, now)
+        )
+        cur.execute(
+            f"INSERT INTO {domain_id}_audit_log (id, domain_id, comanda_id, action, tenant_id, timestamp, details) "
+            f"VALUES (%s, %s, %s, %s, %s, %s, %s)",
+            (uuid.uuid4().hex, domain_id, entity_id, "CREATE", tenant_id, now,
+             json.dumps({"status": status_init}))
+        )
+    else:
+        registry.query(domain_id,
+            f"INSERT INTO {tabel} (id, domain_id, {owner_key}, data, hash, status, valoare, urgent, created_at, updated_at) "
+            f"VALUES (?,?,?,?,?,?,?,?,?,?)",
+            (entity_id, domain_id, tenant_id, data_str, hash_val, status_init,
+             float(valoare), int(data.get("urgent", 0)), now, now))
+
+    trace_request("/entities POST", domain_id, tenant_id, body,
+                  {"id": entity_id, "status": status_init}, (time.time()-t0)*1000)
+    return {"id": entity_id, "domain_id": domain_id, "tenant_id": tenant_id,
+            "status": status_init, "created_at": now}
+
+
+@app.post("/api/domains/{domain_id}/entities/{entity_id}/transition")
+def transition_entity(domain_id: str, entity_id: str, body: dict,
+                      current: dict = Depends(get_current_tenant)):
+    require_domain(domain_id, current)
+
+    trigger = body.get("trigger", "")
+    if not trigger:
+        raise HTTPException(400, "Campul trigger este obligatoriu")
+
+    tabel = detecteaza_tabel(domain_id)
+    row   = registry.query_one(domain_id, f"SELECT * FROM {tabel} WHERE id=?", (entity_id,))
+    if not row:
+        raise HTTPException(404, "Entitate negasita")
+
+    cfg         = registry.get(domain_id)
+    transitions = cfg.get("fsm", {}).get("transitions", [])
+    status_cur  = row.get("status", "DRAFT")
+
+    tranzitie = next(
+        (t for t in transitions if t["trigger"] == trigger and t["source"] == status_cur),
+        None
+    )
+    if not tranzitie:
+        raise HTTPException(400, f"Tranzitie invalida: '{trigger}' din starea '{status_cur}'")
+
+    status_nou = tranzitie["dest"]
+    now        = utcnow()
+
+    if USE_PG:
+        _, conn = registry.get_db(domain_id)
+        cur = conn.cursor()
+        cur.execute(f"UPDATE {tabel} SET status=%s, updated_at=%s WHERE id=%s",
+                    (status_nou, now, entity_id))
+        cur.execute(
+            f"INSERT INTO {domain_id}_audit_log (id, domain_id, comanda_id, action, tenant_id, timestamp, details) "
+            f"VALUES (%s, %s, %s, %s, %s, %s, %s)",
+            (uuid.uuid4().hex, domain_id, entity_id, f"TRANSITION:{trigger}",
+             current["tenant_id"], now, json.dumps({"from": status_cur, "to": status_nou}))
+        )
+    else:
+        registry.query(domain_id, f"UPDATE {tabel} SET status=?, updated_at=? WHERE id=?",
+                       (status_nou, now, entity_id))
+
+    return {"id": entity_id, "status_anterior": status_cur,
+            "status_nou": status_nou, "trigger": trigger, "updated_at": now}
 
 @app.get("/api/domains/{domain_id}/audit")
 def get_audit(domain_id: str, entity_id: Optional[str]=None,
