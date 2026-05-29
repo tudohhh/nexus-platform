@@ -1,0 +1,388 @@
+{
+  "domain_id": "constructii",
+  "display_name": "Nexus Constructii",
+  "description": "Comenzi materiale pe santier cu aprobare pe nivele",
+  "color_primary": "#f97316",
+  "color_urgent": "#ef4444",
+  "logo_letter": "C",
+  "tenant_types": {
+    "initiator": [
+      "SANTIER-NORD",
+      "SANTIER-SUD",
+      "SANTIER-VEST"
+    ],
+    "aprobator1": [
+      "SEF-SANTIER-NORD",
+      "SEF-SANTIER-SUD",
+      "SEF-SANTIER-VEST"
+    ],
+    "aprobator2": [
+      "CFO-CENTRAL"
+    ],
+    "furnizor": [
+      "DEDEMAN-PRO",
+      "PRAKTIKER-B2B",
+      "SAINT-GOBAIN-RO"
+    ]
+  },
+  "tenants": [
+    "SANTIER-NORD",
+    "SANTIER-SUD",
+    "SANTIER-VEST",
+    "SEF-SANTIER-NORD",
+    "SEF-SANTIER-SUD",
+    "SEF-SANTIER-VEST",
+    "CFO-CENTRAL",
+    "DEDEMAN-PRO",
+    "PRAKTIKER-B2B",
+    "SAINT-GOBAIN-RO"
+  ],
+  "contract_id_prefix": "CMD-CONST",
+  "approval_chain": {
+    "SANTIER-NORD": {
+      "aprobator1": "SEF-SANTIER-NORD",
+      "aprobator2": "CFO-CENTRAL"
+    },
+    "SANTIER-SUD": {
+      "aprobator1": "SEF-SANTIER-SUD",
+      "aprobator2": "CFO-CENTRAL"
+    },
+    "SANTIER-VEST": {
+      "aprobator1": "SEF-SANTIER-VEST",
+      "aprobator2": "CFO-CENTRAL"
+    }
+  },
+  "limite_buget": {
+    "aprobator1": 100000.0,
+    "aprobator2": 999999999.0
+  },
+  "fsm": {
+    "states": [
+      "DRAFT",
+      "APROBAT_TEREN",
+      "APROBAT_FINANCIAR",
+      "COMANDAT_FURNIZOR",
+      "IN_LIVRARE",
+      "RECEPTIONAT",
+      "FACTURAT",
+      "RESPINS"
+    ],
+    "transitions": [
+      {
+        "trigger": "trimite",
+        "source": "DRAFT",
+        "dest": "APROBAT_TEREN"
+      },
+      {
+        "trigger": "aproba_financiar",
+        "source": "APROBAT_TEREN",
+        "dest": "APROBAT_FINANCIAR"
+      },
+      {
+        "trigger": "comanda",
+        "source": "APROBAT_FINANCIAR",
+        "dest": "COMANDAT_FURNIZOR"
+      },
+      {
+        "trigger": "livreaza",
+        "source": "COMANDAT_FURNIZOR",
+        "dest": "IN_LIVRARE"
+      },
+      {
+        "trigger": "receptioneaza",
+        "source": "IN_LIVRARE",
+        "dest": "RECEPTIONAT"
+      },
+      {
+        "trigger": "factureaza",
+        "source": "RECEPTIONAT",
+        "dest": "FACTURAT"
+      },
+      {
+        "trigger": "respinge",
+        "source": "DRAFT",
+        "dest": "RESPINS"
+      },
+      {
+        "trigger": "respinge",
+        "source": "APROBAT_TEREN",
+        "dest": "RESPINS"
+      },
+      {
+        "trigger": "respinge",
+        "source": "APROBAT_FINANCIAR",
+        "dest": "RESPINS"
+      }
+    ]
+  },
+  "schemas": {
+    "SANTIER-NORD": {
+      "type": "object",
+      "required": [
+        "furnizor",
+        "categorie",
+        "buget_alocat",
+        "linii"
+      ],
+      "properties": {
+        "furnizor": {
+          "type": "string",
+          "enum": [
+            "DEDEMAN-PRO",
+            "PRAKTIKER-B2B",
+            "SAINT-GOBAIN-RO"
+          ]
+        },
+        "categorie": {
+          "type": "string",
+          "enum": [
+            "structura",
+            "finisaje",
+            "instalatii",
+            "echipamente",
+            "diverse"
+          ]
+        },
+        "buget_alocat": {
+          "type": "number",
+          "minimum": 1
+        },
+        "urgent": {
+          "type": "boolean"
+        },
+        "santier": {
+          "type": "string",
+          "minLength": 2
+        },
+        "note": {
+          "type": "string",
+          "maxLength": 1000
+        },
+        "linii": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "required": [
+              "material",
+              "cantitate",
+              "um",
+              "pret_unitar"
+            ],
+            "properties": {
+              "material": {
+                "type": "string",
+                "minLength": 2
+              },
+              "cantitate": {
+                "type": "number",
+                "minimum": 0.01
+              },
+              "um": {
+                "type": "string",
+                "enum": [
+                  "buc",
+                  "ml",
+                  "mc",
+                  "mp",
+                  "kg",
+                  "t",
+                  "set",
+                  "palet"
+                ]
+              },
+              "pret_unitar": {
+                "type": "number",
+                "minimum": 0
+              },
+              "furnizor_linie": {
+                "type": "string"
+              }
+            },
+            "additionalProperties": false
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "SANTIER-SUD": {
+      "type": "object",
+      "required": [
+        "furnizor",
+        "categorie",
+        "buget_alocat",
+        "linii"
+      ],
+      "properties": {
+        "furnizor": {
+          "type": "string",
+          "enum": [
+            "DEDEMAN-PRO",
+            "PRAKTIKER-B2B",
+            "SAINT-GOBAIN-RO"
+          ]
+        },
+        "categorie": {
+          "type": "string",
+          "enum": [
+            "structura",
+            "finisaje",
+            "instalatii",
+            "echipamente",
+            "diverse"
+          ]
+        },
+        "buget_alocat": {
+          "type": "number",
+          "minimum": 1
+        },
+        "urgent": {
+          "type": "boolean"
+        },
+        "santier": {
+          "type": "string",
+          "minLength": 2
+        },
+        "note": {
+          "type": "string",
+          "maxLength": 1000
+        },
+        "linii": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "required": [
+              "material",
+              "cantitate",
+              "um",
+              "pret_unitar"
+            ],
+            "properties": {
+              "material": {
+                "type": "string",
+                "minLength": 2
+              },
+              "cantitate": {
+                "type": "number",
+                "minimum": 0.01
+              },
+              "um": {
+                "type": "string",
+                "enum": [
+                  "buc",
+                  "ml",
+                  "mc",
+                  "mp",
+                  "kg",
+                  "t",
+                  "set",
+                  "palet"
+                ]
+              },
+              "pret_unitar": {
+                "type": "number",
+                "minimum": 0
+              },
+              "furnizor_linie": {
+                "type": "string"
+              }
+            },
+            "additionalProperties": false
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "SANTIER-VEST": {
+      "type": "object",
+      "required": [
+        "furnizor",
+        "categorie",
+        "buget_alocat",
+        "linii"
+      ],
+      "properties": {
+        "furnizor": {
+          "type": "string",
+          "enum": [
+            "DEDEMAN-PRO",
+            "PRAKTIKER-B2B",
+            "SAINT-GOBAIN-RO"
+          ]
+        },
+        "categorie": {
+          "type": "string",
+          "enum": [
+            "structura",
+            "finisaje",
+            "instalatii",
+            "echipamente",
+            "diverse"
+          ]
+        },
+        "buget_alocat": {
+          "type": "number",
+          "minimum": 1
+        },
+        "urgent": {
+          "type": "boolean"
+        },
+        "santier": {
+          "type": "string",
+          "minLength": 2
+        },
+        "note": {
+          "type": "string",
+          "maxLength": 1000
+        },
+        "linii": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "required": [
+              "material",
+              "cantitate",
+              "um",
+              "pret_unitar"
+            ],
+            "properties": {
+              "material": {
+                "type": "string",
+                "minLength": 2
+              },
+              "cantitate": {
+                "type": "number",
+                "minimum": 0.01
+              },
+              "um": {
+                "type": "string",
+                "enum": [
+                  "buc",
+                  "ml",
+                  "mc",
+                  "mp",
+                  "kg",
+                  "t",
+                  "set",
+                  "palet"
+                ]
+              },
+              "pret_unitar": {
+                "type": "number",
+                "minimum": 0
+              },
+              "furnizor_linie": {
+                "type": "string"
+              }
+            },
+            "additionalProperties": false
+          }
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "owner_key": "initiator"
+}
