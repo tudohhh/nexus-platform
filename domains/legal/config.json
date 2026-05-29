@@ -1,0 +1,164 @@
+{
+  "domain_id": "legal",
+  "display_name": "Nexus Legal",
+  "description": "Call center pentru cabinete avocatura si notariate",
+  "color_primary": "#8b5cf6",
+  "color_urgent": "#dc2626",
+  "logo_letter": "L",
+  "tenants": [
+    "CABINET-IONESCU",
+    "CABINET-POPESCU",
+    "NOTARIAT-CLUJ"
+  ],
+  "contract_id_prefix": "DS-LEG",
+  "fsm": {
+    "states": [
+      "DRAFT",
+      "IN_REVIEW",
+      "APPROVED",
+      "REJECTED"
+    ],
+    "transitions": [
+      {
+        "trigger": "submit",
+        "source": "DRAFT",
+        "dest": "IN_REVIEW"
+      },
+      {
+        "trigger": "approve",
+        "source": "IN_REVIEW",
+        "dest": "APPROVED"
+      },
+      {
+        "trigger": "reject",
+        "source": "*",
+        "dest": "REJECTED"
+      }
+    ],
+    "urgent_state": "URGENT_REVIEW",
+    "urgent_field": "urgent"
+  },
+  "schemas": {
+    "CABINET-IONESCU": {
+      "type": "object",
+      "required": [
+        "client",
+        "tip_dosar",
+        "termen"
+      ],
+      "properties": {
+        "client": {
+          "type": "string",
+          "minLength": 2,
+          "label": "Nume client"
+        },
+        "tip_dosar": {
+          "type": "string",
+          "enum": [
+            "Civil",
+            "Penal",
+            "Comercial",
+            "Familie"
+          ],
+          "label": "Tip dosar"
+        },
+        "termen": {
+          "type": "string",
+          "label": "Termen instanta"
+        },
+        "urgent": {
+          "type": "boolean",
+          "label": "Urgent"
+        },
+        "valoare_dosar": {
+          "type": "number",
+          "minimum": 0,
+          "label": "Valoare dosar (RON)"
+        }
+      },
+      "additionalProperties": false
+    },
+    "CABINET-POPESCU": {
+      "type": "object",
+      "required": [
+        "client",
+        "tip_dosar",
+        "termen"
+      ],
+      "properties": {
+        "client": {
+          "type": "string",
+          "minLength": 2,
+          "label": "Nume client"
+        },
+        "tip_dosar": {
+          "type": "string",
+          "enum": [
+            "Civil",
+            "Penal",
+            "Comercial",
+            "Familie"
+          ],
+          "label": "Tip dosar"
+        },
+        "termen": {
+          "type": "string",
+          "label": "Termen instanta"
+        },
+        "urgent": {
+          "type": "boolean",
+          "label": "Urgent"
+        }
+      },
+      "additionalProperties": false
+    },
+    "NOTARIAT-CLUJ": {
+      "type": "object",
+      "required": [
+        "client",
+        "tip_act",
+        "data_programare"
+      ],
+      "properties": {
+        "client": {
+          "type": "string",
+          "minLength": 2,
+          "label": "Nume client"
+        },
+        "tip_act": {
+          "type": "string",
+          "enum": [
+            "Testament",
+            "Procura",
+            "Contract vanzare",
+            "Donatie"
+          ],
+          "label": "Tip act notarial"
+        },
+        "data_programare": {
+          "type": "string",
+          "label": "Data programare"
+        },
+        "urgent": {
+          "type": "boolean",
+          "label": "Urgent"
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "ui": {
+    "columns": [
+      "ID",
+      "Tenant",
+      "Client",
+      "Status",
+      "Integritate",
+      "Data"
+    ],
+    "urgent_label": "DOSAR URGENT",
+    "entity_label": "Dosar",
+    "entities_label": "Dosare"
+  },
+  "owner_key": "cabinet_id"
+}

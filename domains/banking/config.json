@@ -1,0 +1,177 @@
+{
+  "domain_id": "banking",
+  "display_name": "Nexus Banking",
+  "description": "Call center pentru institutii financiare",
+  "color_primary": "#f59e0b",
+  "color_urgent": "#ef4444",
+  "logo_letter": "B",
+  "tenants": [
+    "BANCA-ALPHA",
+    "IFN-RAPID",
+    "LEASING-PRO"
+  ],
+  "contract_id_prefix": "CR-FIN",
+  "fsm": {
+    "states": [
+      "DRAFT",
+      "KYC_PENDING",
+      "APPROVED",
+      "REJECTED",
+      "DISBURSED"
+    ],
+    "transitions": [
+      {
+        "trigger": "submit_kyc",
+        "source": "DRAFT",
+        "dest": "KYC_PENDING"
+      },
+      {
+        "trigger": "approve",
+        "source": "KYC_PENDING",
+        "dest": "APPROVED"
+      },
+      {
+        "trigger": "disburse",
+        "source": "APPROVED",
+        "dest": "DISBURSED"
+      },
+      {
+        "trigger": "reject",
+        "source": "*",
+        "dest": "REJECTED"
+      }
+    ],
+    "urgent_state": "FRAUD_REVIEW",
+    "urgent_field": "fraud_flag"
+  },
+  "schemas": {
+    "BANCA-ALPHA": {
+      "type": "object",
+      "required": [
+        "client",
+        "tip_produs",
+        "suma"
+      ],
+      "properties": {
+        "client": {
+          "type": "string",
+          "minLength": 2,
+          "label": "Nume client"
+        },
+        "tip_produs": {
+          "type": "string",
+          "enum": [
+            "Credit personal",
+            "Credit ipotecar",
+            "Card credit",
+            "Overdraft"
+          ],
+          "label": "Produs bancar"
+        },
+        "suma": {
+          "type": "number",
+          "minimum": 500,
+          "label": "Suma solicitata (RON)"
+        },
+        "termen_luni": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 360,
+          "label": "Termen (luni)"
+        },
+        "fraud_flag": {
+          "type": "boolean",
+          "label": "Flag frauda"
+        }
+      },
+      "additionalProperties": false
+    },
+    "IFN-RAPID": {
+      "type": "object",
+      "required": [
+        "client",
+        "suma",
+        "termen_zile"
+      ],
+      "properties": {
+        "client": {
+          "type": "string",
+          "minLength": 2,
+          "label": "Nume client"
+        },
+        "suma": {
+          "type": "number",
+          "minimum": 100,
+          "maximum": 10000,
+          "label": "Suma (RON)"
+        },
+        "termen_zile": {
+          "type": "integer",
+          "minimum": 7,
+          "maximum": 90,
+          "label": "Termen (zile)"
+        },
+        "fraud_flag": {
+          "type": "boolean",
+          "label": "Flag frauda"
+        }
+      },
+      "additionalProperties": false
+    },
+    "LEASING-PRO": {
+      "type": "object",
+      "required": [
+        "client",
+        "obiect_leasing",
+        "valoare"
+      ],
+      "properties": {
+        "client": {
+          "type": "string",
+          "minLength": 2,
+          "label": "Nume client"
+        },
+        "obiect_leasing": {
+          "type": "string",
+          "enum": [
+            "Auto",
+            "Echipament",
+            "Imobil",
+            "IT"
+          ],
+          "label": "Obiect leasing"
+        },
+        "valoare": {
+          "type": "number",
+          "minimum": 1000,
+          "label": "Valoare (EUR)"
+        },
+        "avans_procent": {
+          "type": "integer",
+          "minimum": 10,
+          "maximum": 50,
+          "label": "Avans (%)"
+        },
+        "fraud_flag": {
+          "type": "boolean",
+          "label": "Flag frauda"
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "ui": {
+    "columns": [
+      "ID",
+      "Tenant",
+      "Client",
+      "Status",
+      "Integritate",
+      "Data"
+    ],
+    "urgent_label": "FRAUD ALERT",
+    "entity_label": "Cerere",
+    "entities_label": "Cereri"
+  },
+  "owner_key": "banca_id"
+}

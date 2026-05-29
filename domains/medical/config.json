@@ -1,0 +1,144 @@
+{
+  "domain_id": "medical",
+  "display_name": "Sentinel Medical",
+  "description": "Call center pentru programari si triaj medical",
+  "color_primary": "#3b82f6",
+  "color_urgent": "#ef4444",
+  "logo_letter": "S",
+  "tenants": [
+    "CLINICA-A",
+    "CLINICA-B",
+    "SPITAL-001"
+  ],
+  "contract_id_prefix": "CT-MED",
+  "fsm": {
+    "states": [
+      "DRAFT",
+      "VALIDATED",
+      "APPROVED",
+      "REJECTED"
+    ],
+    "transitions": [
+      {
+        "trigger": "validate",
+        "source": "DRAFT",
+        "dest": "VALIDATED"
+      },
+      {
+        "trigger": "approve",
+        "source": "VALIDATED",
+        "dest": "APPROVED"
+      },
+      {
+        "trigger": "reject",
+        "source": "*",
+        "dest": "REJECTED"
+      }
+    ],
+    "urgent_state": "HUMAN_REVIEW",
+    "urgent_field": "urgenta"
+  },
+  "schemas": {
+    "CLINICA-A": {
+      "type": "object",
+      "required": [
+        "pacient",
+        "data_programare"
+      ],
+      "properties": {
+        "pacient": {
+          "type": "string",
+          "minLength": 2,
+          "label": "Nume pacient"
+        },
+        "data_programare": {
+          "type": "string",
+          "label": "Data programare"
+        },
+        "urgenta": {
+          "type": "boolean",
+          "label": "Urgenta"
+        }
+      },
+      "additionalProperties": false
+    },
+    "CLINICA-B": {
+      "type": "object",
+      "required": [
+        "pacient",
+        "diagnostic",
+        "medic"
+      ],
+      "properties": {
+        "pacient": {
+          "type": "string",
+          "minLength": 2,
+          "label": "Nume pacient"
+        },
+        "diagnostic": {
+          "type": "string",
+          "label": "Diagnostic"
+        },
+        "medic": {
+          "type": "string",
+          "label": "Medic curant"
+        },
+        "prioritate": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 5,
+          "label": "Prioritate"
+        }
+      },
+      "additionalProperties": false
+    },
+    "SPITAL-001": {
+      "type": "object",
+      "required": [
+        "pacient",
+        "sectie",
+        "urgenta"
+      ],
+      "properties": {
+        "pacient": {
+          "type": "string",
+          "minLength": 2,
+          "label": "Nume pacient"
+        },
+        "sectie": {
+          "type": "string",
+          "enum": [
+            "ATI",
+            "Chirurgie",
+            "Cardiologie",
+            "Neurologie"
+          ],
+          "label": "Sectie"
+        },
+        "urgenta": {
+          "type": "boolean",
+          "label": "Urgenta"
+        },
+        "cod_triaj": {
+          "type": "string",
+          "label": "Cod triaj"
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "ui": {
+    "columns": [
+      "ID",
+      "Tenant",
+      "Pacient",
+      "Status",
+      "Integritate",
+      "Data"
+    ],
+    "urgent_label": "URGENTA MEDICALA",
+    "entity_label": "Contract medical",
+    "entities_label": "Contracte medicale"
+  },
+  "owner_key": "clinica_id"
+}
