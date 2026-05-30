@@ -7,21 +7,6 @@ from api.auth import (create_token, get_current_tenant, require_domain,
                       require_admin, hash_password, verify_password)
 from api.tracing import trace_request, trace_error, trace_auth, flush
 
-# Rate limiter via PostgreSQL
-_rate_store = defaultdict(list)
-_rate_lock  = threading.Lock()
-
-def check_rate_limit(key: str, max_requests: int = 5, window_seconds: int = 60) -> bool:
-    """Returneaza True daca requestul e permis, False daca e blocat."""
-    now = time.time()
-    with _rate_lock:
-        timestamps = _rate_store[key]
-        # Sterge timestamp-urile vechi
-        _rate_store[key] = [t for t in timestamps if now - t < window_seconds]
-        if len(_rate_store[key]) >= max_requests:
-            return False
-        _rate_store[key].append(now)
-        return True
 
 def utcnow():
     return datetime.now(timezone.utc).isoformat()
@@ -31,6 +16,40 @@ DOMAINS_DIR  = os.path.join(BASE, "domains")
 SECRET       = os.environ.get("NEXUS_SECRET") or (_ for _ in ()).throw(EnvironmentError("NEXUS_SECRET lipsa din env"))
 DATABASE_URL = os.environ.get("DATABASE_URL", "")
 USE_PG       = bool(DATABASE_URL)
+
+# Rate limiter via PostgreSQL - shared intre toti workers
+
+def check_rate_limit(key: str, max_requests: int = 5, window_seconds: int = 60) -> bool:
+    if not USE_PG:
+        return True
+    now = time.time()
+    try:
+        conn = psycopg2.connect(DATABASE_URL)
+        conn.autocommit = False
+        cur = conn.cursor()
+        cur.execute('SELECT count, window_start FROM rate_limit WHERE key=%s FOR UPDATE', (key,))
+        row = cur.fetchone()
+        if row:
+            count, window_start = row
+            if now - window_start > window_seconds:
+                cur.execute('UPDATE rate_limit SET count=1, window_start=%s WHERE key=%s', (now, key))
+                conn.commit()
+                conn.close()
+                return True
+            if count >= max_requests:
+                conn.rollback()
+                conn.close()
+                return False
+            cur.execute('UPDATE rate_limit SET count=count+1 WHERE key=%s', (key,))
+        else:
+            cur.execute('INSERT INTO rate_limit (key, count, window_start) VALUES (%s, 1, %s)', (key, now))
+        conn.commit()
+        conn.close()
+        return True
+    except Exception as e:
+        print(f'[rate_limit] eroare: {e}')
+        return True
+
 
 if USE_PG:
     import psycopg2, psycopg2.extras
