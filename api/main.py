@@ -17,11 +17,6 @@ SECRET       = os.environ.get("NEXUS_SECRET") or (_ for _ in ()).throw(Environme
 DATABASE_URL = os.environ.get("DATABASE_URL", "")
 USE_PG       = bool(DATABASE_URL)
 
-# Rate limiter via PostgreSQL - shared intre toti workers
-
-def check_rate_limit(key: str, max_requests: int = 5, window_seconds: int = 60) -> bool:
-    if not USE_PG:
-        return True
     now = time.time()
     try:
         conn = psycopg2.connect(DATABASE_URL)
@@ -51,11 +46,11 @@ def check_rate_limit(key: str, max_requests: int = 5, window_seconds: int = 60) 
         return True
 
 
-if USE_PG:
+try:
     import psycopg2, psycopg2.extras
-    print("DB: PostgreSQL")
-else:
-    print("DB: SQLite (fallback)")
+except ImportError:
+    psycopg2 = None
+print("DB: PostgreSQL" if USE_PG else "DB: SQLite (fallback)")
 
 class DomainRegistry:
     def __init__(self):
@@ -191,12 +186,6 @@ def shutdown():
 def login(request: Request, body: dict):
     t0 = time.time()
     # Rate limit: 5 requests/minut per IP
-    client_ip = request.headers.get("X-Forwarded-For", "").split(",")[0].strip()
-    if not client_ip:
-        client_ip = request.client.host if request.client else "unknown"
-    rate_key = f"login:{tenant_id}:{domain_id}"
-    if not check_rate_limit(rate_key, max_requests=5, window_seconds=60):
-        raise HTTPException(status_code=429, detail="Prea multe incercari. Incearca din nou in 60 secunde.")
     tenant_id = body.get("tenant_id", "")
     domain_id = body.get("domain_id", "")
     password  = body.get("password", "")
