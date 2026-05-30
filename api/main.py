@@ -7,10 +7,7 @@ from api.auth import (create_token, get_current_tenant, require_domain,
                       require_admin, hash_password, verify_password)
 from api.tracing import trace_request, trace_error, trace_auth, flush
 
-from collections import defaultdict
-import threading
-
-# Rate limiter in-memory — simplu, fara dependente externe
+# Rate limiter via PostgreSQL
 _rate_store = defaultdict(list)
 _rate_lock  = threading.Lock()
 
@@ -108,6 +105,11 @@ class DomainRegistry:
             cur.execute("CREATE TABLE IF NOT EXISTS " + domain_id + "_comenzi (id TEXT PRIMARY KEY, domain_id TEXT, tenant_id TEXT, data TEXT, hash TEXT, status TEXT, valoare REAL DEFAULT 0, urgent INTEGER DEFAULT 0, created_at TEXT, updated_at TEXT)")
             cur.execute("CREATE TABLE IF NOT EXISTS " + domain_id + "_audit_log (id TEXT PRIMARY KEY, domain_id TEXT, comanda_id TEXT, action TEXT, tenant_id TEXT, timestamp TEXT, details TEXT)")
             cur.execute("CREATE TABLE IF NOT EXISTS " + domain_id + "_tenanti (tenant_id TEXT PRIMARY KEY, domain_id TEXT, status TEXT DEFAULT 'active', created_at TEXT)")
+        cur.execute("""CREATE TABLE IF NOT EXISTS rate_limit (
+            key TEXT PRIMARY KEY,
+            count INTEGER DEFAULT 0,
+            window_start REAL DEFAULT 0
+        )""")
         cur.execute("SELECT id FROM nexus_users WHERE tenant_id='admin' AND domain_id='admin'")
         if not cur.fetchone():
             cur.execute("INSERT INTO nexus_users VALUES (%s,%s,%s,%s,%s,%s,%s)",
