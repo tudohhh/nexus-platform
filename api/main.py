@@ -7,6 +7,11 @@ from api.auth import (create_token, get_current_tenant, require_domain,
                       require_admin, hash_password, verify_password)
 from api.tracing import trace_request, trace_error, trace_auth, flush
 
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
+
+limiter = Limiter(key_func=get_remote_address)
 
 def utcnow():
     return datetime.now(timezone.utc).isoformat()
@@ -17,26 +22,11 @@ SECRET       = os.environ.get("NEXUS_SECRET") or (_ for _ in ()).throw(Environme
 DATABASE_URL = os.environ.get("DATABASE_URL", "")
 USE_PG       = bool(DATABASE_URL)
 
-            if count >= max_requests:
-                conn.rollback()
-                conn.close()
-                return False
-            cur.execute('UPDATE rate_limit SET count=count+1 WHERE key=%s', (key,))
-        else:
-            cur.execute('INSERT INTO rate_limit (key, count, window_start) VALUES (%s, 1, %s)', (key, now))
-        conn.commit()
-        conn.close()
-        return True
-    except Exception as e:
-        print(f'[rate_limit] eroare: {e}')
-        return True
-
-
-try:
+if USE_PG:
     import psycopg2, psycopg2.extras
-except ImportError:
-    psycopg2 = None
-print("DB: PostgreSQL" if USE_PG else "DB: SQLite (fallback)")
+    print("DB: PostgreSQL")
+else:
+    print("DB: SQLite (fallback)")
 
 class DomainRegistry:
     def __init__(self):
@@ -105,11 +95,6 @@ class DomainRegistry:
             cur.execute("CREATE TABLE IF NOT EXISTS " + domain_id + "_comenzi (id TEXT PRIMARY KEY, domain_id TEXT, tenant_id TEXT, data TEXT, hash TEXT, status TEXT, valoare REAL DEFAULT 0, urgent INTEGER DEFAULT 0, created_at TEXT, updated_at TEXT)")
             cur.execute("CREATE TABLE IF NOT EXISTS " + domain_id + "_audit_log (id TEXT PRIMARY KEY, domain_id TEXT, comanda_id TEXT, action TEXT, tenant_id TEXT, timestamp TEXT, details TEXT)")
             cur.execute("CREATE TABLE IF NOT EXISTS " + domain_id + "_tenanti (tenant_id TEXT PRIMARY KEY, domain_id TEXT, status TEXT DEFAULT 'active', created_at TEXT)")
-        cur.execute("""CREATE TABLE IF NOT EXISTS rate_limit (
-            key TEXT PRIMARY KEY,
-            count INTEGER DEFAULT 0,
-            window_start REAL DEFAULT 0
-        )""")
         cur.execute("SELECT id FROM nexus_users WHERE tenant_id='admin' AND domain_id='admin'")
         if not cur.fetchone():
             cur.execute("INSERT INTO nexus_users VALUES (%s,%s,%s,%s,%s,%s,%s)",
@@ -122,14 +107,10 @@ class DomainRegistry:
 registry = DomainRegistry()
 
 def detecteaza_tabel(domain_id):
-    if USE_PG:
-        return domain_id + "_comenzi"
-    try:
-        db_type, conn = registry.get_db(domain_id)
-        tables = conn.execute("SELECT name FROM sqlite_master WHERE type='table' AND name NOT IN ('audit_log','tenanti','linii_comanda','aprobari','facturi')").fetchall()
-        return tables[0]["name"] if tables else domain_id + "_comenzi"
-    except:
-        return domain_id + "_comenzi"
+    if USE_PG: return domain_id + "_comenzi"
+    db_type, conn = registry.get_db(domain_id)
+    tables = conn.execute("SELECT name FROM sqlite_master WHERE type='table' AND name NOT IN ('audit_log','tenanti','linii_comanda','aprobari','facturi')").fetchall()
+    return tables[0]["name"] if tables else "comenzi"
 
 def safe_get(row, key, default=None):
     try:    return row[key]
@@ -153,6 +134,8 @@ def verifica_integritate(domain_id, row):
     except: return False
 
 app = FastAPI(title="Nexus Platform API", version="1.2.0")
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 app.add_middleware(CORSMiddleware,
     allow_origins=os.environ.get("ALLOWED_ORIGINS", "*").split(","),
     allow_methods=["GET", "POST"],
@@ -169,9 +152,9 @@ def shutdown():
 # ── AUTH ─────────────────────────────────────────────────
 
 @app.post("/auth/login")
+@limiter.limit("5/minute")
 def login(request: Request, body: dict):
     t0 = time.time()
-    # Rate limit: 5 requests/minut per IP
     tenant_id = body.get("tenant_id", "")
     domain_id = body.get("domain_id", "")
     password  = body.get("password", "")
@@ -299,8 +282,8 @@ def get_entities(domain_id: str, tenant_id: Optional[str]=None,
     query  = "SELECT * FROM " + tabel + " WHERE 1=1"
     params = []
     if tenant_id:
-        query += " AND " + owner_key + "=" + ph
-        params += [tenant_id]
+        query += " AND (" + owner_key + "=" + ph + " OR furnizor=" + ph + ")"
+        params += [tenant_id, tenant_id]
     if status:
         query += " AND status=" + ph
         params.append(status)
