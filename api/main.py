@@ -17,20 +17,6 @@ SECRET       = os.environ.get("NEXUS_SECRET") or (_ for _ in ()).throw(Environme
 DATABASE_URL = os.environ.get("DATABASE_URL", "")
 USE_PG       = bool(DATABASE_URL)
 
-    now = time.time()
-    try:
-        conn = psycopg2.connect(DATABASE_URL)
-        conn.autocommit = False
-        cur = conn.cursor()
-        cur.execute('SELECT count, window_start FROM rate_limit WHERE key=%s FOR UPDATE', (key,))
-        row = cur.fetchone()
-        if row:
-            count, window_start = row
-            if now - window_start > window_seconds:
-                cur.execute('UPDATE rate_limit SET count=1, window_start=%s WHERE key=%s', (now, key))
-                conn.commit()
-                conn.close()
-                return True
             if count >= max_requests:
                 conn.rollback()
                 conn.close()
