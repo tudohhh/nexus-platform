@@ -250,11 +250,20 @@ def get_tenants(domain_id: str, current: dict = Depends(get_current_tenant)):
     require_domain(domain_id, current)
     try:
         tabel = domain_id + "_tenanti" if USE_PG else "tenanti"
-        rows  = registry.query(domain_id, "SELECT * FROM " + tabel + " ORDER BY tenant_id")
+        ph = "%s" if USE_PG else "?"
+        # Admin vede toti tenantii, userul vede doar pe el
+        if current["role"] == "admin":
+            rows = registry.query(domain_id, "SELECT * FROM " + tabel + " ORDER BY tenant_id")
+        else:
+            rows = registry.query(domain_id, "SELECT * FROM " + tabel + " WHERE tenant_id=" + ph + " ORDER BY tenant_id", (current["tenant_id"],))
         result = {"tenanti": rows, "total": len(rows)}
     except:
         cfg = registry.get(domain_id)
-        result = {"tenanti": cfg.get("tenants", []), "total": len(cfg.get("tenants", []))}
+        if current["role"] == "admin":
+            tenanti = cfg.get("tenants", [])
+        else:
+            tenanti = [t for t in cfg.get("tenants", []) if t.get("tenant_id") == current["tenant_id"]]
+        result = {"tenanti": tenanti, "total": len(tenanti)}
     trace_request("/tenants", domain_id, current["tenant_id"], {}, result, (time.time()-t0)*1000)
     return result
 
@@ -269,18 +278,19 @@ def get_entities(domain_id: str, tenant_id: Optional[str]=None,
         tenant_id = current["tenant_id"]
     tabel     = detecteaza_tabel(domain_id)
     owner_key = registry.owner_key(domain_id)
+    ph        = "%s" if USE_PG else "?"
     query  = "SELECT * FROM " + tabel + " WHERE 1=1"
     params = []
     if tenant_id:
-        query += " AND (" + owner_key + "=? OR furnizor=?)"
+        query += " AND (" + owner_key + "=" + ph + " OR furnizor=" + ph + ")"
         params += [tenant_id, tenant_id]
     if status:
-        query += " AND status=?"
+        query += " AND status=" + ph
         params.append(status)
     if urgent is not None:
-        query += " AND urgent=?"
+        query += " AND urgent=" + ph
         params.append(1 if urgent else 0)
-    query += " ORDER BY created_at DESC LIMIT ? OFFSET ?"
+    query += " ORDER BY created_at DESC LIMIT " + ph + " OFFSET " + ph
     params += [limit, offset]
     rows = registry.query(domain_id, query, params)
     result = []
