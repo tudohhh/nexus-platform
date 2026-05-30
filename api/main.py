@@ -107,10 +107,14 @@ class DomainRegistry:
 registry = DomainRegistry()
 
 def detecteaza_tabel(domain_id):
-    if USE_PG: return domain_id + "_comenzi"
-    db_type, conn = registry.get_db(domain_id)
-    tables = conn.execute("SELECT name FROM sqlite_master WHERE type='table' AND name NOT IN ('audit_log','tenanti','linii_comanda','aprobari','facturi')").fetchall()
-    return tables[0]["name"] if tables else "comenzi"
+    if USE_PG:
+        return domain_id + "_comenzi"
+    try:
+        db_type, conn = registry.get_db(domain_id)
+        tables = conn.execute("SELECT name FROM sqlite_master WHERE type='table' AND name NOT IN ('audit_log','tenanti','linii_comanda','aprobari','facturi')").fetchall()
+        return tables[0]["name"] if tables else domain_id + "_comenzi"
+    except:
+        return domain_id + "_comenzi"
 
 def safe_get(row, key, default=None):
     try:    return row[key]
