@@ -286,8 +286,8 @@ def get_entities(domain_id: str, tenant_id: Optional[str]=None,
     query  = "SELECT * FROM " + tabel + " WHERE 1=1"
     params = []
     if tenant_id:
-        query += " AND (" + owner_key + "=" + ph + " OR furnizor=" + ph + ")"
-        params += [tenant_id, tenant_id]
+        query += " AND " + owner_key + "=" + ph
+        params += [tenant_id]
     if status:
         query += " AND status=" + ph
         params.append(status)
