@@ -384,5 +384,5 @@
       "additionalProperties": false
     }
   },
-  "owner_key": "initiator"
+  "owner_key": "tenant_id"
 }

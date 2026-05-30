@@ -173,5 +173,5 @@
     "entity_label": "Cerere",
     "entities_label": "Cereri"
   },
-  "owner_key": "banca_id"
+  "owner_key": "tenant_id"
 }

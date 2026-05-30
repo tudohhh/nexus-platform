@@ -160,5 +160,5 @@
     "entity_label": "Dosar",
     "entities_label": "Dosare"
   },
-  "owner_key": "cabinet_id"
+  "owner_key": "tenant_id"
 }

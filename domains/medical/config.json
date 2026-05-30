@@ -140,5 +140,5 @@
     "entity_label": "Contract medical",
     "entities_label": "Contracte medicale"
   },
-  "owner_key": "clinica_id"
+  "owner_key": "tenant_id"
 }
