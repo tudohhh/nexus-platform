@@ -191,8 +191,11 @@ def shutdown():
 def login(request: Request, body: dict):
     t0 = time.time()
     # Rate limit: 5 requests/minut per IP
-    client_ip = request.client.host if request.client else "unknown"
-    if not check_rate_limit(f"login:{client_ip}", max_requests=5, window_seconds=60):
+    client_ip = request.headers.get("X-Forwarded-For", "").split(",")[0].strip()
+    if not client_ip:
+        client_ip = request.client.host if request.client else "unknown"
+    rate_key = f"login:{tenant_id}:{domain_id}"
+    if not check_rate_limit(rate_key, max_requests=5, window_seconds=60):
         raise HTTPException(status_code=429, detail="Prea multe incercari. Incearca din nou in 60 secunde.")
     tenant_id = body.get("tenant_id", "")
     domain_id = body.get("domain_id", "")
