@@ -7,11 +7,24 @@ from api.auth import (create_token, get_current_tenant, require_domain,
                       require_admin, hash_password, verify_password)
 from api.tracing import trace_request, trace_error, trace_auth, flush
 
-from slowapi import Limiter, _rate_limit_exceeded_handler
-from slowapi.util import get_remote_address
-from slowapi.errors import RateLimitExceeded
+from collections import defaultdict
+import threading
 
-limiter = Limiter(key_func=get_remote_address)
+# Rate limiter in-memory — simplu, fara dependente externe
+_rate_store = defaultdict(list)
+_rate_lock  = threading.Lock()
+
+def check_rate_limit(key: str, max_requests: int = 5, window_seconds: int = 60) -> bool:
+    """Returneaza True daca requestul e permis, False daca e blocat."""
+    now = time.time()
+    with _rate_lock:
+        timestamps = _rate_store[key]
+        # Sterge timestamp-urile vechi
+        _rate_store[key] = [t for t in timestamps if now - t < window_seconds]
+        if len(_rate_store[key]) >= max_requests:
+            return False
+        _rate_store[key].append(now)
+        return True
 
 def utcnow():
     return datetime.now(timezone.utc).isoformat()
@@ -138,8 +151,6 @@ def verifica_integritate(domain_id, row):
     except: return False
 
 app = FastAPI(title="Nexus Platform API", version="1.2.0")
-app.state.limiter = limiter
-app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 app.add_middleware(CORSMiddleware,
     allow_origins=os.environ.get("ALLOWED_ORIGINS", "*").split(","),
     allow_methods=["GET", "POST"],
@@ -156,9 +167,12 @@ def shutdown():
 # ── AUTH ─────────────────────────────────────────────────
 
 @app.post("/auth/login")
-@limiter.limit("5/minute")
 def login(request: Request, body: dict):
     t0 = time.time()
+    # Rate limit: 5 requests/minut per IP
+    client_ip = request.client.host if request.client else "unknown"
+    if not check_rate_limit(f"login:{client_ip}", max_requests=5, window_seconds=60):
+        raise HTTPException(status_code=429, detail="Prea multe incercari. Incearca din nou in 60 secunde.")
     tenant_id = body.get("tenant_id", "")
     domain_id = body.get("domain_id", "")
     password  = body.get("password", "")
