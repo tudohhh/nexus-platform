@@ -18,7 +18,7 @@ def utcnow():
 
 BASE         = os.environ.get("NEXUS_BASE", ".")
 DOMAINS_DIR  = os.path.join(BASE, "domains")
-SECRET       = os.environ.get("NEXUS_SECRET", "nexus-dev-secret-uniform-2026")
+SECRET       = os.environ.get("NEXUS_SECRET") or (_ for _ in ()).throw(EnvironmentError("NEXUS_SECRET lipsa din env"))
 DATABASE_URL = os.environ.get("DATABASE_URL", "")
 USE_PG       = bool(DATABASE_URL)
 
@@ -99,7 +99,7 @@ class DomainRegistry:
         if not cur.fetchone():
             cur.execute("INSERT INTO nexus_users VALUES (%s,%s,%s,%s,%s,%s,%s)",
                 (uuid.uuid4().hex, "admin", "admin",
-                 hash_password(os.environ.get("ADMIN_PASSWORD", "nexus-admin-2026")),
+                 hash_password(os.environ.get("ADMIN_PASSWORD") or (_ for _ in ()).throw(EnvironmentError("ADMIN_PASSWORD lipsa din env"))),
                  "admin", True, utcnow()))
             print("OK: admin seeded")
         conn.close()

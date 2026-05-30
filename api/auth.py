@@ -6,7 +6,7 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from jose import JWTError, jwt
 from passlib.context import CryptContext
 
-SECRET_KEY  = os.environ.get("NEXUS_SECRET", "nexus-dev-secret-uniform-2026")
+SECRET_KEY  = os.environ.get("NEXUS_SECRET") or (_ for _ in ()).throw(EnvironmentError("NEXUS_SECRET lipsa din env"))
 ALGORITHM   = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = int(os.environ.get("JWT_EXPIRE_MINUTES", "60"))
 
